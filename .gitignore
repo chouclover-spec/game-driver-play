@@ -1,0 +1,14 @@
+# 依赖与缓存
+node_modules/
+*.log
+
+# 浏览器自动化工具的临时产物
+.playwright-cli/
+
+# 系统垃圾
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 只包含可公开游戏文件的部署产物
+release/

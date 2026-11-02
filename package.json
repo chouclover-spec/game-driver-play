@@ -1,0 +1,12 @@
+﻿{
+  "name": "morning-commute",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test",
+    "build:offline": "node tools/build-offline.mjs",
+    "build:pages": "node tools/build-pages.mjs"
+  }
+}

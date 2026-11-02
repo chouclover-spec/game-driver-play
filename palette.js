@@ -1,0 +1,51 @@
+// Q 版玩具世界。色板只影响渲染。
+export const PALETTE = Object.freeze({
+  paper: '#fff9e9',
+  yellow: '#ffd348',
+  red: '#f34f46',
+  blue: '#358bea',
+  jade: '#36b980',
+  ochre: '#ffad46',
+  walnut: '#946342',
+  asphalt: '#718698',
+  ink: '#253a53',
+  white: '#ffffff',
+  grass: '#8cce68',
+  grassLight: '#b1e58a',
+  grassDark: '#65b653',
+  curb: '#e2e9dd',
+  glass: '#bcecf6',
+  glassDark: '#4389aa',
+  shadow: '#213c5730',
+  skin: '#ffd0a0',
+  hair: '#65412d',
+  navy: '#344f7d',
+  silver: '#d8edf0',
+  cat: '#b7a99f',
+  pink: '#f49eab',
+  tealEyes: '#55ded8',
+  sea: '#59cdd5',
+  seaDeep: '#2ca9c4',
+  seaShallow: '#b5eee2',
+  sand: '#f5dfa8',
+  palmDark: '#237d61',
+  palmLight: '#56bd7b',
+  canopyShadow: '#163d3b26',
+});
+
+export const TINTS = Object.freeze([
+  '#fff1c7',
+  '#a5d9f6',
+  '#ffcc91',
+  '#a3e2c5',
+]);
+
+export const VEHICLE_COLORS = Object.freeze({
+  car: '#f9e8ac',
+  sweeper: '#ffb447',
+  tricycle: '#49c397',
+  taxi: '#4b9cf0',
+  motorcycle: '#a48ada',
+  suv: '#3c5067',
+  player: PALETTE.red,
+});
