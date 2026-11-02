@@ -1,0 +1,13 @@
+Generated with the built-in image_gen tool, not CLI.
+Output: clover-victory-v2.png, RGBA PNG with original generated alpha.
+Identity reference: clover-turnaround.webp.
+Context reference: user attachment codex-clipboard-2b4d85ee-2853-4fd8-ac24-06cdf8c2e3ec.png.
+
+Use case: stylized-concept.
+Asset type: production-ready transparent character illustration for CLOVER's victory result screen in our browser driving game.
+Input images: Image 1 is the authoritative character identity and clothing reference (the three-view sheet). Image 2 is the existing result-screen screenshot, only a reference for the intended smug victory mood; do not reproduce its UI or pasted-on sunglasses.
+Primary request: redraw one polished full-body CLOVER in a natural, playful "that was easy" victory pose. Preserve the reference character's exact chibi adult identity: huge rounded head, tiny compact body, warm peach skin, brown chin-length bob with side-swept fringe, large navy blue rib-knit beanie, black short-sleeve T-shirt, silver leaf pendant necklace, olive khaki cargo shorts, black round smartwatch on left wrist, white socks and taupe chunky sneakers. Same soft dimensional high-quality 3D animated game figure, tactile knit and fabric, softly sculpted hair, warm studio shading.
+Pose and expression: standing casually with one knee relaxed and shoulders slightly turned, left arm folded across the body and right hand lightly adjusting the upper outside corner of the sunglasses, chin a little lifted, a subtle self-satisfied half-smile. Convey confident and cheeky, recognizable as CLOVER, not aggressive.
+Eyewear: exactly ONE pair of beautifully rendered dark sunglasses physically fitted to the nose and ears, round thin dark metal frames retaining CLOVER's round-glasses silhouette, dark smoke lenses with a restrained soft highlight. Replace the clear prescription glasses for this victory pose. No second pair, no stacked frames, no flat sticker glasses, no pixel sunglasses.
+Composition: single isolated character, centered full body, front three-quarter view, portrait 4:5, entire beanie and both shoes visible, clean silhouette, approximately 85% canvas height with comfortable edge clearance. Transparent alpha background, no floor or backdrop.
+Constraints: preserve all character identity and clothing; only change victory pose, expression and the single pair of lenses. No text, no letters, no watermark, no UI, no colored circles, no confetti, no plaques, no other characters, no vehicle. This is final character art to be placed over our existing interface.

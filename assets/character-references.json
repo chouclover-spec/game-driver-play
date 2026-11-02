@@ -1,0 +1,71 @@
+{
+  "date": "2026-10-30",
+  "authority": "用户本轮提供的三视图与载具参考；角色外观及载具对应以这五张图为准",
+  "files": [
+    {
+      "asset": "driver-vehicles.webp",
+      "source": "codex-clipboard-b247eb6a-566a-49fc-aa6f-f449b65be401.png",
+      "source_sha256": "c60e62c1e9e4799cc8468606dc4b6504c7d8e3b966a5d13881a7457e6d48b34a",
+      "original_size": [
+        1086,
+        1448
+      ],
+      "saved_size": [
+        1086,
+        1448
+      ]
+    },
+    {
+      "asset": "cjyyza-turnaround.webp",
+      "source": "codex-clipboard-0915d790-d307-48c1-ab4f-e2f96d626e98.png",
+      "source_sha256": "2fef6d089d5dd9c910327c9636bcc26766140db2a49b179a2384ef340a715be5",
+      "original_size": [
+        1774,
+        887
+      ],
+      "saved_size": [
+        1600,
+        800
+      ]
+    },
+    {
+      "asset": "clover-turnaround.webp",
+      "source": "codex-clipboard-a811955b-abed-4745-bbb2-0f8258882f77.png",
+      "source_sha256": "75b96f593566924b1b119484a91f7a58955d223feaee2ab81e0fe80892fb319e",
+      "original_size": [
+        1774,
+        887
+      ],
+      "saved_size": [
+        1600,
+        800
+      ]
+    },
+    {
+      "asset": "wulong-turnaround.webp",
+      "source": "codex-clipboard-1f3d82de-c12e-4340-9d3c-fb10dfd0491a.png",
+      "source_sha256": "1dd04a1d7ca19de63ddaf5122d01cc168e8bc0700b038bf1abed2d6a3ae6ea9c",
+      "original_size": [
+        1774,
+        887
+      ],
+      "saved_size": [
+        1600,
+        800
+      ]
+    },
+    {
+      "asset": "sebastian-turnaround.webp",
+      "source": "codex-clipboard-cce84830-9439-4f81-99dd-1b78952618f5.png",
+      "source_sha256": "b85984a9f8ce5cff9d9f6c50370a711fc8103244b603ae61c10fdc9c406933b9",
+      "original_size": [
+        1536,
+        1024
+      ],
+      "saved_size": [
+        1536,
+        1024
+      ]
+    }
+  ]
+}
