@@ -146,7 +146,7 @@ function sound(freq = 260, duration = .12, type = 'sine', volume = .025) {
 }
 function toast(message) { $('toast').textContent = message; toastUntil = performance.now() + 3700; $('toast').classList.add('visible'); }
 function resetInput() { input.gas = false; input.brake = false; heldKeys.clear(); heldPointers.clear(); document.querySelectorAll('.held').forEach(el => el.classList.remove('held')); }
-function overlay(html) { $('overlay-content').innerHTML = html; $('overlay-content').className = 'overlay-content'; $('overlay-content').classList.toggle('start-card', screen === 'start'); $('overlay').hidden = false; resetInput(); }
+function overlay(html) { $('overlay-content').innerHTML = html; $('overlay-content').scrollTop = 0; $('overlay-content').className = 'overlay-content'; $('overlay-content').classList.toggle('start-card', screen === 'start'); $('overlay').hidden = false; resetInput(); }
 function hideOverlay() { $('overlay').hidden = true; }
 function clearReaction() { activeReaction = null; game.reaction = null; $('driver-reaction').hidden = true; }
 function updateReaction() {
@@ -189,7 +189,7 @@ function showStart() {
   $('lobby').hidden = true; $('game-app').hidden = false; $('game-nav').hidden = false;
   document.body.classList.add('in-game'); $('back-lobby').textContent = '← 车手大厅';
   renderer.resize();
-  overlay(`<span class="eyebrow">${getDriver(selectedDriver).name} / READY TO GO</span><h2>今天开哪条路？</h2><p>${getDriver(selectedDriver).vehicle}已就位。<br>选好模式，就出发。</p><button class="primary" id="start-levels">闯关出发 ↗ · 新手推荐</button><button class="secondary" id="start-random">随机通勤</button><button class="secondary" id="start-daily">每日同路况挑战</button><button class="text-button" id="view-scores">查看本角色今日榜 →</button><p class="overlay-hint">↑ 加速　↓ / 空格 刹车　← → 变道<br>闯关有防追尾辅助，每关约 1～2 分钟。</p>`);
+  overlay(`<span class="eyebrow">${getDriver(selectedDriver).name} / READY TO GO</span><h2>今天开哪条路？</h2><p>${getDriver(selectedDriver).vehicle}已就位。<br>选好模式，就出发。</p><button class="primary" id="start-levels">闯关出发 ↗ · 新手推荐</button><button class="secondary" id="start-random">随机通勤</button><button class="secondary" id="start-daily">每日同路况挑战</button><button class="text-button" id="view-scores">查看本角色今日榜 →</button><p class="overlay-hint"><span class="keyboard-hint">↑ 加速　↓ / 空格 刹车　← → 变道</span><span class="touch-hint">按住油门 / 刹车，点左右箭头变道。</span><br>闯关有防追尾辅助，每关约 1～2 分钟。</p>`);
   window.scrollTo(0, 0);
   $('start-levels').onclick = showLevelSelect;
   $('start-random').onclick = () => start(randomSeed(), 'random');
