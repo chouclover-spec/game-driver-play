@@ -1899,6 +1899,14 @@ button { touch-action: manipulation; }
   .result-art-ink,.result-art-paper { inset: 10px; }
 }
 
+.trait-badge { position:absolute; z-index:2; left:20px; top:153px; padding:4px 10px; border:1px solid var(--trait-color,#76edff); border-radius:20px; color:var(--trait-color,#76edff); background:#24242de8; font-size:11px; pointer-events:none; }
+.trait-badge.active { background:var(--trait-color); color:#15151d; box-shadow:0 0 18px var(--trait-color); }
+.crash-review { margin:12px 0; border:1px solid #ff7995; border-radius:12px; padding:10px; }
+.crash-review strong { color:#ffb2c3; font-size:12px; }
+.crash-review img { width:100%; max-height:190px; object-fit:contain; background:#15151d; border-radius:8px; }
+@media(max-width:700px) { .trait-badge { top:151px; left:10px; font-size:10px; } .driver-reaction { top:188px; } }
+@media(max-width:1000px) and (max-height:500px) { .trait-badge { top:105px; left:auto; right:10px; } }
+
 </style>
 </head>
 <body>
@@ -1955,7 +1963,7 @@ button { touch-action: manipulation; }
         <div class="road-info"><span id="stage">01 / 小区出口</span><span id="road-warning">前方道路顺畅</span></div>
         <div id="toast" class="toast" role="status">上车，系好安全带。</div>
         <aside id="driver-reaction" class="driver-reaction" role="status" aria-live="polite" aria-atomic="true" hidden><div class="reaction-portrait" id="reaction-portrait" aria-hidden="true"></div><div class="reaction-copy"><div><strong id="reaction-name">CLOVER</strong><small id="reaction-tag"></small></div><p id="reaction-quote"></p><span id="reaction-thought" hidden></span></div></aside>
-        <div class="speedometer"><strong id="speed">0</strong><span>km/h</span><small id="pedal">自动巡航</small></div>
+        <div class="trait-badge" id="trait-badge" role="status"></div><div class="speedometer"><strong id="speed">0</strong><span>km/h</span><small id="pedal">自动巡航</small></div>
         <div id="overlay" class="overlay">
           <div class="overlay-content" id="overlay-content"></div>
         </div>
@@ -2053,6 +2061,13 @@ const DRIVERS = Object.freeze([
 ]);
 function getDriver(id) { return DRIVERS.find(driver => driver.id === id) || DRIVERS[0]; }
 
+const DRIVER_TRAITS = {
+ clover: { brakingBonus: 1.25, icon: '≋', name: '急刹稳住', description: '刹车效力提高25%；急刹时亮起橙色制动环。', color: '#ffab48' },
+ cjyyza: { handlingBonus: 1.2, icon: '↔', name: '灵巧穿行', description: '变道速度提高20%；变道时显示绿色轨迹。', color: '#7dffb1' },
+ wulong: { damageScale: .5, icon: '◇', name: '随它去吧', description: '轻微车辆碰撞减伤50%；触发金色护盾。严重碰撞仍会失败。', color: '#ffe272' },
+ sebastian: { lookAhead: 5, icon: '◎', name: '预测协议', description: '危险车辆预判从3秒提前到5秒；青色扫描框锁定风险。', color: '#76edff' },
+};
+
 // ===== campaign.js =====
 const LEVELS = Object.freeze([
   { name: '村路', theme: 'village', length: 460, cruise: 6, maxSpeed: 9, initialCars: 2, spawnDelay: 8, types: ['car', 'tricycle'], briefing: '坑洼多，人车混行。先松油门，再找空隙绕开；行人过路时停一停。', tip: '不赶时间。坑可以慢慢绕，行人要先让。' },
@@ -2108,10 +2123,11 @@ const approach = (v, target, amount) => v < target ? Math.min(target, v + amount
 class Commute {
   constructor(seed, mode = 'random', levelIndex = 0, driverId = 'clover') {
     this.seed = seed; this.mode = mode; this.random = seededRandom(seed);
-    this.driver = getDriver(driverId);
+    this.driver = getDriver(driverId); this.trait = DRIVER_TRAITS[this.driver.id];
     this.levelIndex = clamp(Math.floor(levelIndex) || 0, 0, LEVELS.length - 1);
     this.level = mode === 'levels' ? LEVELS[this.levelIndex] : null;
     this.potholes = []; this.pedestrians = []; this.potholeHits = 0; this.avoided = 0; this.yielded = 0; this.lastAssist = -10;
+    this.skillUntil = 0; this.failure = null;
     this.time = 0; this.length = 2600; this.state = 'running'; this.branch = null;
     this.incidents = []; this.seenIncidents = new Set();
     this.player = { pos: 0, x: .5, targetX: .5, speed: 0, length: this.driver.length, width: this.driver.width, health: 100, lateral: 0 };
@@ -2238,11 +2254,14 @@ class Commute {
         }
       }
     }
+    if (this.driver.id === 'sebastian' && this.cars.some(c => { const gap=c.pos-p.pos-(c.length+p.length)/2; return Math.abs(c.x-p.x)<.65 && gap>0 && p.speed-c.speed>1 && gap/(p.speed-c.speed)<this.trait.lookAhead; })) this.skillUntil=this.time+.3;
     const oldSpeed = p.speed;
-    p.speed = approach(p.speed, this.time < this.slowUntil ? 0 : target, dt * (assist ? 7 : input.brake ? 7 * stats.braking : p.speed > target ? 2 : (this.level ? 2 : 2.8) * stats.acceleration));
+    p.speed = approach(p.speed, this.time < this.slowUntil ? 0 : target, dt * (assist ? 7 : input.brake ? 7 * stats.braking * (this.trait.brakingBonus || 1) : p.speed > target ? 2 : (this.level ? 2 : 2.8) * stats.acceleration));
     if (input.brake && oldSpeed > 14 && this.time - this.lastHardBrake > 3) { this.hardBrakes++; this.lastHardBrake = this.time; }
+    if (this.driver.id === 'clover' && input.brake && oldSpeed > 3) this.skillUntil = this.time + .3;
+    if (this.driver.id === 'cjyyza' && Math.abs(p.targetX-p.x) > .08) this.skillUntil = this.time + .3;
     const oldX = p.x;
-    p.x = approach(p.x, p.targetX, dt * 1.5 * stats.handling); p.lateral = (p.x - oldX) / dt;
+    p.x = approach(p.x, p.targetX, dt * 1.5 * stats.handling * (this.trait.handlingBonus || 1)); p.lateral = (p.x - oldX) / dt;
     p.pos += p.speed * dt;
     const available = this.lanesAt(p.pos);
     if (p.x > available - .35) {
@@ -2304,7 +2323,7 @@ class Commute {
         continue;
       }
       if (person.x > 0 && person.x < this.lanesAt(person.pos) && Math.abs(p.pos - person.pos) < (p.length + person.length) / 2 && Math.abs(p.x - person.x) < (p.width + person.width) / 2) {
-        this.accidents++; this.state = 'lost'; this.reason = '没有让过路行人先通过。已保留行驶得分，只需重试村路。';
+        this.failure = { x: person.x, pos: person.pos, kind: 'pedestrian', tip: '行人进入道路时先停车，等行人完全通过。' }; this.accidents++; this.state = 'lost'; this.reason = '没有让过路行人先通过。已保留行驶得分，只需重试村路。';
       }
     }
   }
@@ -2384,7 +2403,7 @@ class Commute {
   hitObstacle(speed, reason) {
     this.notice('collision', `obstacle:${this.player.pos}`);
     this.accidents++; this.jolt = 1;
-    if (speed >= (this.level ? 12 : 8)) { this.state = 'lost'; this.reason = reason; return; }
+    if (speed >= (this.level ? 12 : 8)) { this.failure = { x: this.player.x, pos: this.player.pos, tip: '提前离开封闭车道，降低车速。' }; this.state = 'lost'; this.reason = reason; return; }
     this.player.health -= Math.max(8, speed * 3); this.player.speed = 0; this.slowUntil = this.time + .8;
     this.emit('低速碰到围挡。车还能开，先离开封闭车道。', 'collision');
   }
@@ -2397,9 +2416,11 @@ class Commute {
       const severity = collisionSeverity(p.speed - car.speed, p.lateral - car.lateral);
       this.notice('collision', car.id);
       this.accidents++; this.jolt = 1;
-      if (severity >= (this.level ? 12 : 8)) { this.state = 'lost'; this.reason = `与${CAR_TYPES[car.type].name}发生严重碰撞。速度差太大，刹车需要更早。`; }
+      if (severity >= (this.level ? 12 : 8)) { this.failure = { x: (p.x + car.x)/2, pos: (p.pos + car.pos)/2, tip: Math.abs(p.lateral) > .1 ? '变道前，先确认旁边的车道有空隙。' : '速度差过大，看到慢车时提前刹车。' }; this.state = 'lost'; this.reason = `与${CAR_TYPES[car.type].name}发生严重碰撞。速度差太大，刹车需要更早。`; }
       else {
-        p.health -= Math.max(this.level ? 4 : 7, Math.round(severity * (this.level ? 2 : 4))); this.slowUntil = this.time + .55; p.speed = Math.min(p.speed, car.speed);
+        const damage = Math.max(this.level ? 4 : 7, Math.round(severity * (this.level ? 2 : 4)));
+        p.health -= damage * (this.trait.damageScale || 1);
+        if (this.driver.id === 'wulong') this.skillUntil = this.time + 1.4; this.slowUntil = this.time + .55; p.speed = Math.min(p.speed, car.speed);
         this.emit(this.level ? `轻碰${CAR_TYPES[car.type].name}，少量车损，继续闯关。` : `和${CAR_TYPES[car.type].name}轻微碰撞。车还能开，榜单资格没了。`, 'collision');
       }
     }
@@ -2412,7 +2433,7 @@ class Commute {
     const hole = this.potholes.find(hole => !hole.resolved && hole.pos > p.pos && hole.pos - p.pos < 65);
     if (hole) return `${Math.round(hole.pos - p.pos)}m · ${Math.floor(hole.x) + 1}道有坑，绕开或慢行`;
     const light = this.lights.find(l => l.pos > p.pos + 2 && l.pos - p.pos < 90);
-    if (light) { const s = lightState(light, this.time); return `${Math.round(light.pos - p.pos)}m · ${s.color === 'red' ? '红灯，准备停车' : s.color === 'yellow' ? '黄灯，别抢' : '绿灯'} ${Math.ceil(s.remaining)}s`; }
+    if (light) { const s = lightState(light, this.time); return `${Math.round(light.pos - p.pos)}m · ${s.color === 'red' ? '⛔' : s.color === 'yellow' ? '⚠' : '●'} ${Math.ceil(s.remaining)}s`; }
     const narrow = this.segments.find((s, i) => i > 0 && s.start > p.pos && s.start - p.pos < 130 && s.lanes < this.segments[i - 1].lanes);
     if (narrow) return `${Math.round(narrow.start - p.pos)}m · 收窄为${narrow.lanes}车道`;
     const work = this.works.find(w => w.start > p.pos && w.start - p.pos < 120);
@@ -2826,8 +2847,63 @@ class Renderer {
     this.drawCar({ ...p, color: getDriver(this.driver).color, type: 'player', brake: game.inputBrake }, leftOf(p.pos) + p.x * LANE, PLAYER_Y, game.time, scale);
     if (game.reaction && game.reaction.expiresAt > game.time) this.drawReaction(game.reaction, leftOf(p.pos) + p.x * LANE, PLAYER_Y, game.time);
     if (W > 600) this.foreground(game);
+    this.drawSafety(game, screenY, leftOf, scale);
     c.restore();
   }
+
+  drawSafety(game, screenY, leftOf, scale) {
+    if (game.state === 'choice') return;
+    const c = this.ctx, p = game.player, {width:W,height:H,lane,playerY} = this.layout;
+    const px = leftOf(p.pos) + p.x * lane;
+    const trait = DRIVER_TRAITS[game.driver.id];
+    const pulse = reducedMotion ? 1 : .82 + Math.sin(game.time * 5) * .18;
+    const ring = (x,y,r,color) => { c.beginPath(); c.arc(x,y,r,0,Math.PI*2); c.strokeStyle=color; c.lineWidth=3; c.stroke(); };
+    c.save();
+    // 单个危险标记贴近对象；屏外危险钳制到道路上沿，避免满屏弹字。
+    const threats = game.cars.filter(car => {
+      const gap=car.pos-p.pos-(car.length+p.length)/2, closing=p.speed-car.speed;
+      return (Math.abs(car.x-p.x)<.65 && gap>0 && closing>1 && gap/closing<(DRIVER_TRAITS[game.driver.id].lookAhead || 3)) ||
+        (Math.abs(car.x-p.targetX)<.65 && Math.abs(p.targetX-p.x)>.08 && Math.abs(car.pos-p.pos)<12);
+    }).sort((a,b)=>Math.abs(a.pos-p.pos)-Math.abs(b.pos-p.pos)).slice(0,2);
+    for (const car of threats) {
+      const x=leftOf(car.pos)+car.x*lane, rawY=screenY(car.pos), y=Math.max(H*.28,Math.min(H-35,rawY));
+      const color=game.driver.id==='sebastian'?trait.color:'#ff685c';
+      c.globalAlpha=pulse; c.setLineDash(game.driver.id==='sebastian'?[7,4]:[]);
+      this.box(x-car.width*lane/2-6,y-car.length*scale/2-5,car.width*lane+12,car.length*scale+10,10,'#00000000',color,3);
+      c.setLineDash([]); this.dot(x,y-car.length*scale/2-17,11,color); this.text('!',x,y-car.length*scale/2-13,15,'#17171d');
+      if(rawY< H*.28) { c.beginPath(); c.moveTo(x-7,y-38);c.lineTo(x,y-46);c.lineTo(x+7,y-38);c.stroke(); }
+    }
+    c.globalAlpha=1;
+    const light=game.lights.find(l=>l.pos>p.pos && l.pos-p.pos<Math.max(65,p.speed*5));
+    if (light && lightState(light,game.time).color!=='green') {
+      const red=lightState(light,game.time).color==='red', color=red?'#ff4c61':'#ffcf49';
+      const y=Math.max(H*.28,screenY(light.pos));
+      c.globalAlpha=.65;this.box(leftOf(light.pos)+5,y,game.roadWidthAt(light.pos)*lane-10,7,3,color);
+      c.globalAlpha=1;this.dot(px,y+30,19,'#252530',color,3);this.dot(px,y+30,12,color);
+      if(red)this.box(px-8,y+27,16,5,2,'#fff');else this.text('!',px,y+35,18,'#252530');
+      // 车速越接近刹停极限，停止符号外圈越完整。
+      const stopping=p.speed*p.speed/(2*7*game.driver.stats.braking*(trait.brakingBonus || 1))+6;
+      if(red && light.pos-p.pos<stopping*1.6) ring(px,y+30,24,'#fff');
+    }
+    for(const person of game.pedestrians.filter(v=>!v.done&&v.pos>p.pos&&v.pos-p.pos<55).slice(0,1)) {
+      const y=Math.max(H*.28,screenY(person.pos)),x=leftOf(person.pos)+person.x*lane;
+      ring(x,y,18,'#ffcf49');this.dot(x,y-6,3,'#fff');c.strokeStyle='#fff';c.lineWidth=2;c.beginPath();c.moveTo(x,y-2);c.lineTo(x,y+6);c.moveTo(x-6,y+1);c.lineTo(x+6,y+1);c.moveTo(x,y+6);c.lineTo(x-5,y+12);c.moveTo(x,y+6);c.lineTo(x+5,y+12);c.stroke();
+    }
+    const active=game.skillUntil>game.time;
+    if(active || (game.driver.id==='sebastian'&&threats.length)) {
+      c.strokeStyle=trait.color;c.lineWidth=4;c.globalAlpha=.85;
+      if(game.driver.id==='cjyyza') {c.setLineDash([5,5]);c.beginPath();c.moveTo(px,playerY+25);c.quadraticCurveTo(px,playerY-30,leftOf(p.pos)+p.targetX*lane,playerY-55);c.stroke();c.setLineDash([]);}
+      else if(game.driver.id==='wulong') {c.beginPath();c.moveTo(px,playerY-40);c.lineTo(px+32,playerY-23);c.lineTo(px+26,playerY+20);c.lineTo(px,playerY+42);c.lineTo(px-26,playerY+20);c.lineTo(px-32,playerY-23);c.closePath();c.fillStyle=trait.color+'44';c.fill();c.stroke();}
+      else {ring(px,playerY,42,trait.color);if(game.driver.id==='clover'){for(const dx of [-17,17])this.box(px+dx-2,playerY+25,4,30,2,trait.color);} }
+      this.box(px-43,playerY+55,86,23,6,'#20202bea',trait.color,1);this.text(trait.name,px,playerY+71,11,trait.color);
+    }
+    if(game.state==='lost') {
+      const f=game.failure||{pos:p.pos,x:p.x};const x=leftOf(f.pos)+f.x*lane,y=Math.max(30,Math.min(H-30,screenY(f.pos)));
+      ring(x,y,31,'#ff4c61');ring(x,y,22,'#fff');c.strokeStyle='#ff4c61';c.lineWidth=4;c.beginPath();c.moveTo(x-40,y);c.lineTo(x-15,y);c.moveTo(x+15,y);c.lineTo(x+40,y);c.moveTo(x,y-40);c.lineTo(x,y-15);c.moveTo(x,y+15);c.lineTo(x,y+40);c.stroke();
+    }
+    c.restore();
+  }
+
   // 情绪标记浮在车手上方，不改变驾驶模型或遮挡道路警告。
   drawReaction(reaction, x, y, time) {
     const c = this.ctx, angry = reaction.mood === 'angry';
@@ -3020,11 +3096,13 @@ function selectDriver(id) {
   $('selected-character-number').textContent = `${driver.number} / 04`;
   $('selected-character-vehicle').textContent = driver.vehicle;
   $('driver-type').textContent = driver.tag;
-  $('driver-description').textContent = driver.description;
+  $('driver-description').textContent = driver.description + ' 专属特性：' + DRIVER_TRAITS[id].description;
   $('vehicle-name').textContent = driver.vehicle;
   $('game-driver-label').textContent = `${driver.name} / ${driver.vehicle}`;
   $('game-note').textContent = driver.note;
   $('player-vehicle-label').textContent = `你的载具 · ${driver.vehicle}`;
+  $('trait-badge').textContent = DRIVER_TRAITS[id].icon + ' ' + DRIVER_TRAITS[id].name;
+  $('trait-badge').title = DRIVER_TRAITS[id].description;
   $('player-dot').style.background = driver.color;
   for (const node of [$('stage-vehicle'), $('vehicle-thumb'), $('selected-ride')]) {
     node.style.backgroundPosition = driver.tile;
@@ -3230,7 +3308,7 @@ function showOutcome(won, { stats, actions, explanation, record = '', stamp = ''
     : reaction.mood === 'angry'
       ? '<svg class="angry-mark" viewBox="0 0 40 40" aria-hidden="true"><path d="M6 5V15H15M34 5V15H25M6 35V25H15M34 35V25H25" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/></svg><i class="heat-steam steam-one"></i><i class="heat-steam steam-two"></i>'
       : `<span class="result-emote" aria-hidden="true">${reaction.mood === 'power' ? '↑ ↑' : reaction.mood === 'ai' ? '01' : reaction.mood === 'brooding' ? '……' : '～'}</span>`;
-  overlay(`<div class="result-layout"><div class="result-art" aria-hidden="true"><div class="result-art-ink"></div><div class="result-art-paper"></div><div class="result-pose${resultArt ? ' result-pose-generated' : ''}"><div class="result-character${resultArt ? ' result-character-art' : ''}" data-character="${driver.id}" style="background-image:url('${resultArt || driver.sheet}')">${moodArt}</div></div><span class="result-mood-sticker">${escapeText(reaction.tag)}</span>${won ? `<div class="result-confetti">${Array.from({ length: 10 }, (_, i) => `<i style="--piece:${i};left:${8 + i * 9}%"></i>`).join('')}</div>` : ''}</div><div class="result-content"><span class="outcome-stamp">${won ? 'ARRIVED / 通勤成功' : 'TRY AGAIN / 通勤失算'}</span><small class="result-route">${escapeText(stamp)}</small><h2>${won ? '稳稳到站！' : '这趟，失算了。'}</h2><h3>${escapeText(reaction.title)}</h3><div class="result-quote"><small>${driver.name}</small><p>${escapeText(reaction.quote)}</p>${reaction.thought ? `<span>${escapeText(reaction.thought)}</span>` : ''}</div>${stars ? `<div class="level-stars" aria-label="${stars}星">${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}</div>` : ''}<div class="result-stats">${stats.map(([label, value]) => `<div><small>${escapeText(label)}</small><strong>${escapeText(value)}</strong></div>`).join('')}</div><p class="result-explanation">${escapeText(explanation)}</p>${record ? `<p class="result-record">${escapeText(record)}</p>` : ''}<div class="result-actions">${actions}</div></div></div>`);
+  overlay(`<div class="result-layout"><div class="result-art" aria-hidden="true"><div class="result-art-ink"></div><div class="result-art-paper"></div><div class="result-pose${resultArt ? ' result-pose-generated' : ''}"><div class="result-character${resultArt ? ' result-character-art' : ''}" data-character="${driver.id}" style="background-image:url('${resultArt || driver.sheet}')">${moodArt}</div></div><span class="result-mood-sticker">${escapeText(reaction.tag)}</span>${won ? `<div class="result-confetti">${Array.from({ length: 10 }, (_, i) => `<i style="--piece:${i};left:${8 + i * 9}%"></i>`).join('')}</div>` : ''}</div><div class="result-content"><span class="outcome-stamp">${won ? 'ARRIVED / 通勤成功' : 'TRY AGAIN / 通勤失算'}</span><small class="result-route">${escapeText(stamp)}</small><h2>${won ? '稳稳到站！' : '这趟，失算了。'}</h2><h3>${escapeText(reaction.title)}</h3><div class="result-quote"><small>${driver.name}</small><p>${escapeText(reaction.quote)}</p>${reaction.thought ? `<span>${escapeText(reaction.thought)}</span>` : ''}</div>${stars ? `<div class="level-stars" aria-label="${stars}星">${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}</div>` : ''}<div class="result-stats">${stats.map(([label, value]) => `<div><small>${escapeText(label)}</small><strong>${escapeText(value)}</strong></div>`).join('')}</div><p class="result-explanation">${escapeText(explanation)}</p>${!won ? `<section class="crash-review"><strong>事故定格 · ${game.failure ? (game.failure.kind === "pedestrian" ? "未礼让行人" : "严重碰撞直接结束本局") : "本次失败位置"}</strong><p>${escapeText(game.failure?.tip || "观察路况，提前减速并礼让行人。")}</p>${crashImage ? `<img src="${crashImage}" alt="事故定格，撞击位置以红色靶心标出">` : ""}</section>` : ""}${record ? `<p class="result-record">${escapeText(record)}</p>` : ''}<div class="result-actions">${actions}</div></div></div>`);
   $('overlay-content').classList.add('result-screen', won ? 'result-won' : 'result-lost');
   $('overlay-content').dataset.mood = reaction.mood;
   $('overlay-content').dataset.character = driver.id;
@@ -3252,7 +3330,7 @@ function showResult() {
   }
   $('status').textContent = won ? '安全抵达 · 公司门口' : '本次通勤结束';
   showOutcome(won, {
-    stats: [['本次得分', game.score()], ['实际用时', formatTime(game.time)], ['剩余车况', `${Math.max(0,Math.round(game.player.health))}%`], ['碰撞 / 闯灯', `${game.accidents} / ${game.violations}`]],
+    stats: [['本次得分', game.score()], ['实际用时', formatTime(game.time)], [!won && game.failure ? '碰撞前车况' : '剩余车况', `${Math.max(0,Math.round(game.player.health))}%`], ['碰撞 / 闯灯', `${game.accidents} / ${game.violations}`]],
     explanation: won ? safe ? '无碰撞、无闯灯，安全完成本次通勤。' : '已抵达；本次有碰撞或闯灯，不计入安全榜。' : game.reason,
     record: recordNote, stamp: `${mode === 'daily' ? '每日同路况' : '随机通勤'} / ${getDriver(selectedDriver).vehicle}`,
     actions: '<button class="primary" id="retry">同一路线，再开一次 ↗</button><button class="secondary" id="back-home">返回车手大厅</button>',
@@ -3273,7 +3351,7 @@ function showLevelResult() {
   const total = campaignProgress.records.reduce((sum, record) => sum + (record?.score || 0), 0);
   $('status').textContent = won ? `${game.level.name} · 已通过` : `${game.level.name} · 可以重试`;
   showOutcome(won, {
-    stats: [[won ? '本关得分' : '本次得分', game.score()], ['行驶 / 全程', `${Math.min(game.length,Math.floor(game.player.pos))}/${game.length}m`], ['剩余车况', `${Math.max(0,Math.round(game.player.health))}%`], ['实际用时', formatTime(game.time)]],
+    stats: [[won ? '本关得分' : '本次得分', game.score()], ['行驶 / 全程', `${Math.min(game.length,Math.floor(game.player.pos))}/${game.length}m`], [!won && game.failure ? '碰撞前车况' : '剩余车况', `${Math.max(0,Math.round(game.player.health))}%`], ['实际用时', formatTime(game.time)]],
     explanation: won ? last ? '村路、城市、高速全部通过。这趟稳稳到。' : `下一关：${LEVELS[currentLevel + 1].name}，已解锁。` : game.reason,
     record: `已过关最佳分合计：${total}分。${won ? saveNote : '失败不解锁、不加入过关总分，只重试当前关。'}`,
     stamp: `第${currentLevel + 1}关 / ${game.level.name}`, stars: won ? game.stars() : 0,
@@ -3286,6 +3364,8 @@ function showLevelResult() {
 }
 function updateHUD() {
   const p = game.player;
+  $('trait-badge').classList.toggle('active', game.skillUntil > game.time);
+  $('trait-badge').style.setProperty('--trait-color', DRIVER_TRAITS[selectedDriver].color);
   $('score').textContent = game.score();
   $('time').innerHTML = `${formatTime(game.time)}<span>.${Math.floor(game.time * 10) % 10}</span>`;
   const distance = Math.max(0, game.length - p.pos);
@@ -3352,6 +3432,16 @@ $('restart').onclick = () => {
 $('sound').onclick = () => { muted = !muted; $('sound').textContent = muted ? '静音' : '声音'; $('sound').setAttribute('aria-label', muted ? '开启声音' : '关闭声音'); if (!muted) sound(420); };
 window.addEventListener('blur', () => { resetInput(); if (screen === 'playing') pause(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) { resetInput(); if (screen === 'playing') pause(); } });
+function captureCrash() {
+  const source = $('road'), view = renderer.layout, ratio = source.width/view.width;
+  const width=Math.min(source.width,420*ratio), height=Math.min(source.height,360*ratio);
+  const px=((view.width-game.roadWidthAt(game.player.pos)*view.lane)/2+game.player.x*view.lane)*ratio;
+  const x=Math.max(0,Math.min(source.width-width,px-width/2)), y=Math.max(0,Math.min(source.height-height,view.playerY*ratio-height*.65));
+  const shot=document.createElement('canvas');shot.width=Math.round(width);shot.height=Math.round(height);
+  shot.getContext('2d').drawImage(source,x,y,width,height,0,0,width,height);
+  return shot.toDataURL('image/jpeg',.85);
+}
+let crashUntil = 0, crashImage = '';
 let hudTick = 0;
 function frame(now) {
   const delta = Math.min((now - lastFrame) / 1000 || 0, .1); lastFrame = now;
@@ -3359,8 +3449,10 @@ function frame(now) {
     accumulator += delta;
     while (accumulator >= 1 / 60 && game.state === 'running') { game.update(1 / 60, input); accumulator -= 1 / 60; }
     if (game.state === 'choice') showChoice();
-    else if (game.state === 'won' || game.state === 'lost') showResult();
+    else if (game.state === 'lost') { screen = 'crash'; crashUntil = now + 1100; resetInput(); renderer.render(game); crashImage = captureCrash(); }
+    else if (game.state === 'won') showResult();
   } else accumulator = 0;
+  if (screen === 'crash' && now >= crashUntil) showResult();
   updateReaction();
   document.body.classList.toggle('game-paused', ['paused', 'choice', 'confirm'].includes(screen));
   game.inputBrake = input.brake;

@@ -1,5 +1,5 @@
 import { LEVELS } from './campaign.js';
-import { getDriver } from './drivers.js';
+import { getDriver, DRIVER_TRAITS } from './drivers.js';
 export const CAR_TYPES = {
   car: { name: '小车', speed: 13, length: 4.3, width: .57, color: '#ddd8c7' },
   sweeper: { name: '清扫车', speed: 5.2, length: 5.3, width: .7, color: '#d4b457' },
@@ -27,10 +27,11 @@ const approach = (v, target, amount) => v < target ? Math.min(target, v + amount
 export class Commute {
   constructor(seed, mode = 'random', levelIndex = 0, driverId = 'clover') {
     this.seed = seed; this.mode = mode; this.random = seededRandom(seed);
-    this.driver = getDriver(driverId);
+    this.driver = getDriver(driverId); this.trait = DRIVER_TRAITS[this.driver.id];
     this.levelIndex = clamp(Math.floor(levelIndex) || 0, 0, LEVELS.length - 1);
     this.level = mode === 'levels' ? LEVELS[this.levelIndex] : null;
     this.potholes = []; this.pedestrians = []; this.potholeHits = 0; this.avoided = 0; this.yielded = 0; this.lastAssist = -10;
+    this.skillUntil = 0; this.failure = null;
     this.time = 0; this.length = 2600; this.state = 'running'; this.branch = null;
     this.incidents = []; this.seenIncidents = new Set();
     this.player = { pos: 0, x: .5, targetX: .5, speed: 0, length: this.driver.length, width: this.driver.width, health: 100, lateral: 0 };
@@ -157,11 +158,14 @@ export class Commute {
         }
       }
     }
+    if (this.driver.id === 'sebastian' && this.cars.some(c => { const gap=c.pos-p.pos-(c.length+p.length)/2; return Math.abs(c.x-p.x)<.65 && gap>0 && p.speed-c.speed>1 && gap/(p.speed-c.speed)<this.trait.lookAhead; })) this.skillUntil=this.time+.3;
     const oldSpeed = p.speed;
-    p.speed = approach(p.speed, this.time < this.slowUntil ? 0 : target, dt * (assist ? 7 : input.brake ? 7 * stats.braking : p.speed > target ? 2 : (this.level ? 2 : 2.8) * stats.acceleration));
+    p.speed = approach(p.speed, this.time < this.slowUntil ? 0 : target, dt * (assist ? 7 : input.brake ? 7 * stats.braking * (this.trait.brakingBonus || 1) : p.speed > target ? 2 : (this.level ? 2 : 2.8) * stats.acceleration));
     if (input.brake && oldSpeed > 14 && this.time - this.lastHardBrake > 3) { this.hardBrakes++; this.lastHardBrake = this.time; }
+    if (this.driver.id === 'clover' && input.brake && oldSpeed > 3) this.skillUntil = this.time + .3;
+    if (this.driver.id === 'cjyyza' && Math.abs(p.targetX-p.x) > .08) this.skillUntil = this.time + .3;
     const oldX = p.x;
-    p.x = approach(p.x, p.targetX, dt * 1.5 * stats.handling); p.lateral = (p.x - oldX) / dt;
+    p.x = approach(p.x, p.targetX, dt * 1.5 * stats.handling * (this.trait.handlingBonus || 1)); p.lateral = (p.x - oldX) / dt;
     p.pos += p.speed * dt;
     const available = this.lanesAt(p.pos);
     if (p.x > available - .35) {
@@ -223,7 +227,7 @@ export class Commute {
         continue;
       }
       if (person.x > 0 && person.x < this.lanesAt(person.pos) && Math.abs(p.pos - person.pos) < (p.length + person.length) / 2 && Math.abs(p.x - person.x) < (p.width + person.width) / 2) {
-        this.accidents++; this.state = 'lost'; this.reason = '没有让过路行人先通过。已保留行驶得分，只需重试村路。';
+        this.failure = { x: person.x, pos: person.pos, kind: 'pedestrian', tip: '行人进入道路时先停车，等行人完全通过。' }; this.accidents++; this.state = 'lost'; this.reason = '没有让过路行人先通过。已保留行驶得分，只需重试村路。';
       }
     }
   }
@@ -303,7 +307,7 @@ export class Commute {
   hitObstacle(speed, reason) {
     this.notice('collision', `obstacle:${this.player.pos}`);
     this.accidents++; this.jolt = 1;
-    if (speed >= (this.level ? 12 : 8)) { this.state = 'lost'; this.reason = reason; return; }
+    if (speed >= (this.level ? 12 : 8)) { this.failure = { x: this.player.x, pos: this.player.pos, tip: '提前离开封闭车道，降低车速。' }; this.state = 'lost'; this.reason = reason; return; }
     this.player.health -= Math.max(8, speed * 3); this.player.speed = 0; this.slowUntil = this.time + .8;
     this.emit('低速碰到围挡。车还能开，先离开封闭车道。', 'collision');
   }
@@ -316,9 +320,11 @@ export class Commute {
       const severity = collisionSeverity(p.speed - car.speed, p.lateral - car.lateral);
       this.notice('collision', car.id);
       this.accidents++; this.jolt = 1;
-      if (severity >= (this.level ? 12 : 8)) { this.state = 'lost'; this.reason = `与${CAR_TYPES[car.type].name}发生严重碰撞。速度差太大，刹车需要更早。`; }
+      if (severity >= (this.level ? 12 : 8)) { this.failure = { x: (p.x + car.x)/2, pos: (p.pos + car.pos)/2, tip: Math.abs(p.lateral) > .1 ? '变道前，先确认旁边的车道有空隙。' : '速度差过大，看到慢车时提前刹车。' }; this.state = 'lost'; this.reason = `与${CAR_TYPES[car.type].name}发生严重碰撞。速度差太大，刹车需要更早。`; }
       else {
-        p.health -= Math.max(this.level ? 4 : 7, Math.round(severity * (this.level ? 2 : 4))); this.slowUntil = this.time + .55; p.speed = Math.min(p.speed, car.speed);
+        const damage = Math.max(this.level ? 4 : 7, Math.round(severity * (this.level ? 2 : 4)));
+        p.health -= damage * (this.trait.damageScale || 1);
+        if (this.driver.id === 'wulong') this.skillUntil = this.time + 1.4; this.slowUntil = this.time + .55; p.speed = Math.min(p.speed, car.speed);
         this.emit(this.level ? `轻碰${CAR_TYPES[car.type].name}，少量车损，继续闯关。` : `和${CAR_TYPES[car.type].name}轻微碰撞。车还能开，榜单资格没了。`, 'collision');
       }
     }
@@ -331,7 +337,7 @@ export class Commute {
     const hole = this.potholes.find(hole => !hole.resolved && hole.pos > p.pos && hole.pos - p.pos < 65);
     if (hole) return `${Math.round(hole.pos - p.pos)}m · ${Math.floor(hole.x) + 1}道有坑，绕开或慢行`;
     const light = this.lights.find(l => l.pos > p.pos + 2 && l.pos - p.pos < 90);
-    if (light) { const s = lightState(light, this.time); return `${Math.round(light.pos - p.pos)}m · ${s.color === 'red' ? '红灯，准备停车' : s.color === 'yellow' ? '黄灯，别抢' : '绿灯'} ${Math.ceil(s.remaining)}s`; }
+    if (light) { const s = lightState(light, this.time); return `${Math.round(light.pos - p.pos)}m · ${s.color === 'red' ? '⛔' : s.color === 'yellow' ? '⚠' : '●'} ${Math.ceil(s.remaining)}s`; }
     const narrow = this.segments.find((s, i) => i > 0 && s.start > p.pos && s.start - p.pos < 130 && s.lanes < this.segments[i - 1].lanes);
     if (narrow) return `${Math.round(narrow.start - p.pos)}m · 收窄为${narrow.lanes}车道`;
     const work = this.works.find(w => w.start > p.pos && w.start - p.pos < 120);

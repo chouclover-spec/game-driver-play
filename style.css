@@ -1888,3 +1888,11 @@ button { touch-action: manipulation; }
   .result-character.result-character-art { max-width: 170px; }
   .result-art-ink,.result-art-paper { inset: 10px; }
 }
+
+.trait-badge { position:absolute; z-index:2; left:20px; top:153px; padding:4px 10px; border:1px solid var(--trait-color,#76edff); border-radius:20px; color:var(--trait-color,#76edff); background:#24242de8; font-size:11px; pointer-events:none; }
+.trait-badge.active { background:var(--trait-color); color:#15151d; box-shadow:0 0 18px var(--trait-color); }
+.crash-review { margin:12px 0; border:1px solid #ff7995; border-radius:12px; padding:10px; }
+.crash-review strong { color:#ffb2c3; font-size:12px; }
+.crash-review img { width:100%; max-height:190px; object-fit:contain; background:#15151d; border-radius:8px; }
+@media(max-width:700px) { .trait-badge { top:151px; left:10px; font-size:10px; } .driver-reaction { top:188px; } }
+@media(max-width:1000px) and (max-height:500px) { .trait-badge { top:105px; left:auto; right:10px; } }

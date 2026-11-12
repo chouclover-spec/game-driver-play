@@ -1,6 +1,6 @@
 import { lightState } from './game.js';
 import { PALETTE as P, VEHICLE_COLORS, TINTS } from './palette.js';
-import { getDriver } from './drivers.js';
+import { getDriver, DRIVER_TRAITS } from './drivers.js';
 const W = 420, H = 620, LANE = 78, SCALE = 11, PLAYER_Y = 474;
 const reducedMotion = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 const FONT = '"PingFang SC","Microsoft YaHei",system-ui,sans-serif';
@@ -312,8 +312,63 @@ export class Renderer {
     this.drawCar({ ...p, color: getDriver(this.driver).color, type: 'player', brake: game.inputBrake }, leftOf(p.pos) + p.x * LANE, PLAYER_Y, game.time, scale);
     if (game.reaction && game.reaction.expiresAt > game.time) this.drawReaction(game.reaction, leftOf(p.pos) + p.x * LANE, PLAYER_Y, game.time);
     if (W > 600) this.foreground(game);
+    this.drawSafety(game, screenY, leftOf, scale);
     c.restore();
   }
+
+  drawSafety(game, screenY, leftOf, scale) {
+    if (game.state === 'choice') return;
+    const c = this.ctx, p = game.player, {width:W,height:H,lane,playerY} = this.layout;
+    const px = leftOf(p.pos) + p.x * lane;
+    const trait = DRIVER_TRAITS[game.driver.id];
+    const pulse = reducedMotion ? 1 : .82 + Math.sin(game.time * 5) * .18;
+    const ring = (x,y,r,color) => { c.beginPath(); c.arc(x,y,r,0,Math.PI*2); c.strokeStyle=color; c.lineWidth=3; c.stroke(); };
+    c.save();
+    // 单个危险标记贴近对象；屏外危险钳制到道路上沿，避免满屏弹字。
+    const threats = game.cars.filter(car => {
+      const gap=car.pos-p.pos-(car.length+p.length)/2, closing=p.speed-car.speed;
+      return (Math.abs(car.x-p.x)<.65 && gap>0 && closing>1 && gap/closing<(DRIVER_TRAITS[game.driver.id].lookAhead || 3)) ||
+        (Math.abs(car.x-p.targetX)<.65 && Math.abs(p.targetX-p.x)>.08 && Math.abs(car.pos-p.pos)<12);
+    }).sort((a,b)=>Math.abs(a.pos-p.pos)-Math.abs(b.pos-p.pos)).slice(0,2);
+    for (const car of threats) {
+      const x=leftOf(car.pos)+car.x*lane, rawY=screenY(car.pos), y=Math.max(H*.28,Math.min(H-35,rawY));
+      const color=game.driver.id==='sebastian'?trait.color:'#ff685c';
+      c.globalAlpha=pulse; c.setLineDash(game.driver.id==='sebastian'?[7,4]:[]);
+      this.box(x-car.width*lane/2-6,y-car.length*scale/2-5,car.width*lane+12,car.length*scale+10,10,'#00000000',color,3);
+      c.setLineDash([]); this.dot(x,y-car.length*scale/2-17,11,color); this.text('!',x,y-car.length*scale/2-13,15,'#17171d');
+      if(rawY< H*.28) { c.beginPath(); c.moveTo(x-7,y-38);c.lineTo(x,y-46);c.lineTo(x+7,y-38);c.stroke(); }
+    }
+    c.globalAlpha=1;
+    const light=game.lights.find(l=>l.pos>p.pos && l.pos-p.pos<Math.max(65,p.speed*5));
+    if (light && lightState(light,game.time).color!=='green') {
+      const red=lightState(light,game.time).color==='red', color=red?'#ff4c61':'#ffcf49';
+      const y=Math.max(H*.28,screenY(light.pos));
+      c.globalAlpha=.65;this.box(leftOf(light.pos)+5,y,game.roadWidthAt(light.pos)*lane-10,7,3,color);
+      c.globalAlpha=1;this.dot(px,y+30,19,'#252530',color,3);this.dot(px,y+30,12,color);
+      if(red)this.box(px-8,y+27,16,5,2,'#fff');else this.text('!',px,y+35,18,'#252530');
+      // 车速越接近刹停极限，停止符号外圈越完整。
+      const stopping=p.speed*p.speed/(2*7*game.driver.stats.braking*(trait.brakingBonus || 1))+6;
+      if(red && light.pos-p.pos<stopping*1.6) ring(px,y+30,24,'#fff');
+    }
+    for(const person of game.pedestrians.filter(v=>!v.done&&v.pos>p.pos&&v.pos-p.pos<55).slice(0,1)) {
+      const y=Math.max(H*.28,screenY(person.pos)),x=leftOf(person.pos)+person.x*lane;
+      ring(x,y,18,'#ffcf49');this.dot(x,y-6,3,'#fff');c.strokeStyle='#fff';c.lineWidth=2;c.beginPath();c.moveTo(x,y-2);c.lineTo(x,y+6);c.moveTo(x-6,y+1);c.lineTo(x+6,y+1);c.moveTo(x,y+6);c.lineTo(x-5,y+12);c.moveTo(x,y+6);c.lineTo(x+5,y+12);c.stroke();
+    }
+    const active=game.skillUntil>game.time;
+    if(active || (game.driver.id==='sebastian'&&threats.length)) {
+      c.strokeStyle=trait.color;c.lineWidth=4;c.globalAlpha=.85;
+      if(game.driver.id==='cjyyza') {c.setLineDash([5,5]);c.beginPath();c.moveTo(px,playerY+25);c.quadraticCurveTo(px,playerY-30,leftOf(p.pos)+p.targetX*lane,playerY-55);c.stroke();c.setLineDash([]);}
+      else if(game.driver.id==='wulong') {c.beginPath();c.moveTo(px,playerY-40);c.lineTo(px+32,playerY-23);c.lineTo(px+26,playerY+20);c.lineTo(px,playerY+42);c.lineTo(px-26,playerY+20);c.lineTo(px-32,playerY-23);c.closePath();c.fillStyle=trait.color+'44';c.fill();c.stroke();}
+      else {ring(px,playerY,42,trait.color);if(game.driver.id==='clover'){for(const dx of [-17,17])this.box(px+dx-2,playerY+25,4,30,2,trait.color);} }
+      this.box(px-43,playerY+55,86,23,6,'#20202bea',trait.color,1);this.text(trait.name,px,playerY+71,11,trait.color);
+    }
+    if(game.state==='lost') {
+      const f=game.failure||{pos:p.pos,x:p.x};const x=leftOf(f.pos)+f.x*lane,y=Math.max(30,Math.min(H-30,screenY(f.pos)));
+      ring(x,y,31,'#ff4c61');ring(x,y,22,'#fff');c.strokeStyle='#ff4c61';c.lineWidth=4;c.beginPath();c.moveTo(x-40,y);c.lineTo(x-15,y);c.moveTo(x+15,y);c.lineTo(x+40,y);c.moveTo(x,y-40);c.lineTo(x,y-15);c.moveTo(x,y+15);c.lineTo(x,y+40);c.stroke();
+    }
+    c.restore();
+  }
+
   // 情绪标记浮在车手上方，不改变驾驶模型或遮挡道路警告。
   drawReaction(reaction, x, y, time) {
     const c = this.ctx, angry = reaction.mood === 'angry';

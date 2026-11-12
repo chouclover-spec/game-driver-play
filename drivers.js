@@ -23,3 +23,10 @@ export const DRIVERS = Object.freeze([
     stats: { speed: 1.12, acceleration: 1.08, handling: .9, braking: .9 }, length: 4.3, width: .64 },
 ]);
 export function getDriver(id) { return DRIVERS.find(driver => driver.id === id) || DRIVERS[0]; }
+
+export const DRIVER_TRAITS = {
+ clover: { brakingBonus: 1.25, icon: '≋', name: '急刹稳住', description: '刹车效力提高25%；急刹时亮起橙色制动环。', color: '#ffab48' },
+ cjyyza: { handlingBonus: 1.2, icon: '↔', name: '灵巧穿行', description: '变道速度提高20%；变道时显示绿色轨迹。', color: '#7dffb1' },
+ wulong: { damageScale: .5, icon: '◇', name: '随它去吧', description: '轻微车辆碰撞减伤50%；触发金色护盾。严重碰撞仍会失败。', color: '#ffe272' },
+ sebastian: { lookAhead: 5, icon: '◎', name: '预测协议', description: '危险车辆预判从3秒提前到5秒；青色扫描框锁定风险。', color: '#76edff' },
+};

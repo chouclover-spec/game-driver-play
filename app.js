@@ -1,7 +1,7 @@
 import { Commute, dateSeed, seededRandom, STAGES } from './game.js';
 import { Renderer } from './render.js';
 import { LEVELS, normalizeProgress, recordLevel } from './campaign.js';
-import { DRIVERS, getDriver } from './drivers.js';
+import { DRIVERS, getDriver, DRIVER_TRAITS } from './drivers.js';
 import { ReactionDirector } from './reactions.js';
 const $ = id => document.getElementById(id);
 const renderer = new Renderer($('road'));
@@ -32,11 +32,13 @@ function selectDriver(id) {
   $('selected-character-number').textContent = `${driver.number} / 04`;
   $('selected-character-vehicle').textContent = driver.vehicle;
   $('driver-type').textContent = driver.tag;
-  $('driver-description').textContent = driver.description;
+  $('driver-description').textContent = driver.description + ' 专属特性：' + DRIVER_TRAITS[id].description;
   $('vehicle-name').textContent = driver.vehicle;
   $('game-driver-label').textContent = `${driver.name} / ${driver.vehicle}`;
   $('game-note').textContent = driver.note;
   $('player-vehicle-label').textContent = `你的载具 · ${driver.vehicle}`;
+  $('trait-badge').textContent = DRIVER_TRAITS[id].icon + ' ' + DRIVER_TRAITS[id].name;
+  $('trait-badge').title = DRIVER_TRAITS[id].description;
   $('player-dot').style.background = driver.color;
   for (const node of [$('stage-vehicle'), $('vehicle-thumb'), $('selected-ride')]) {
     node.style.backgroundPosition = driver.tile;
@@ -242,7 +244,7 @@ function showOutcome(won, { stats, actions, explanation, record = '', stamp = ''
     : reaction.mood === 'angry'
       ? '<svg class="angry-mark" viewBox="0 0 40 40" aria-hidden="true"><path d="M6 5V15H15M34 5V15H25M6 35V25H15M34 35V25H25" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/></svg><i class="heat-steam steam-one"></i><i class="heat-steam steam-two"></i>'
       : `<span class="result-emote" aria-hidden="true">${reaction.mood === 'power' ? '↑ ↑' : reaction.mood === 'ai' ? '01' : reaction.mood === 'brooding' ? '……' : '～'}</span>`;
-  overlay(`<div class="result-layout"><div class="result-art" aria-hidden="true"><div class="result-art-ink"></div><div class="result-art-paper"></div><div class="result-pose${resultArt ? ' result-pose-generated' : ''}"><div class="result-character${resultArt ? ' result-character-art' : ''}" data-character="${driver.id}" style="background-image:url('${resultArt || driver.sheet}')">${moodArt}</div></div><span class="result-mood-sticker">${escapeText(reaction.tag)}</span>${won ? `<div class="result-confetti">${Array.from({ length: 10 }, (_, i) => `<i style="--piece:${i};left:${8 + i * 9}%"></i>`).join('')}</div>` : ''}</div><div class="result-content"><span class="outcome-stamp">${won ? 'ARRIVED / 通勤成功' : 'TRY AGAIN / 通勤失算'}</span><small class="result-route">${escapeText(stamp)}</small><h2>${won ? '稳稳到站！' : '这趟，失算了。'}</h2><h3>${escapeText(reaction.title)}</h3><div class="result-quote"><small>${driver.name}</small><p>${escapeText(reaction.quote)}</p>${reaction.thought ? `<span>${escapeText(reaction.thought)}</span>` : ''}</div>${stars ? `<div class="level-stars" aria-label="${stars}星">${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}</div>` : ''}<div class="result-stats">${stats.map(([label, value]) => `<div><small>${escapeText(label)}</small><strong>${escapeText(value)}</strong></div>`).join('')}</div><p class="result-explanation">${escapeText(explanation)}</p>${record ? `<p class="result-record">${escapeText(record)}</p>` : ''}<div class="result-actions">${actions}</div></div></div>`);
+  overlay(`<div class="result-layout"><div class="result-art" aria-hidden="true"><div class="result-art-ink"></div><div class="result-art-paper"></div><div class="result-pose${resultArt ? ' result-pose-generated' : ''}"><div class="result-character${resultArt ? ' result-character-art' : ''}" data-character="${driver.id}" style="background-image:url('${resultArt || driver.sheet}')">${moodArt}</div></div><span class="result-mood-sticker">${escapeText(reaction.tag)}</span>${won ? `<div class="result-confetti">${Array.from({ length: 10 }, (_, i) => `<i style="--piece:${i};left:${8 + i * 9}%"></i>`).join('')}</div>` : ''}</div><div class="result-content"><span class="outcome-stamp">${won ? 'ARRIVED / 通勤成功' : 'TRY AGAIN / 通勤失算'}</span><small class="result-route">${escapeText(stamp)}</small><h2>${won ? '稳稳到站！' : '这趟，失算了。'}</h2><h3>${escapeText(reaction.title)}</h3><div class="result-quote"><small>${driver.name}</small><p>${escapeText(reaction.quote)}</p>${reaction.thought ? `<span>${escapeText(reaction.thought)}</span>` : ''}</div>${stars ? `<div class="level-stars" aria-label="${stars}星">${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}</div>` : ''}<div class="result-stats">${stats.map(([label, value]) => `<div><small>${escapeText(label)}</small><strong>${escapeText(value)}</strong></div>`).join('')}</div><p class="result-explanation">${escapeText(explanation)}</p>${!won ? `<section class="crash-review"><strong>事故定格 · ${game.failure ? (game.failure.kind === "pedestrian" ? "未礼让行人" : "严重碰撞直接结束本局") : "本次失败位置"}</strong><p>${escapeText(game.failure?.tip || "观察路况，提前减速并礼让行人。")}</p>${crashImage ? `<img src="${crashImage}" alt="事故定格，撞击位置以红色靶心标出">` : ""}</section>` : ""}${record ? `<p class="result-record">${escapeText(record)}</p>` : ''}<div class="result-actions">${actions}</div></div></div>`);
   $('overlay-content').classList.add('result-screen', won ? 'result-won' : 'result-lost');
   $('overlay-content').dataset.mood = reaction.mood;
   $('overlay-content').dataset.character = driver.id;
@@ -264,7 +266,7 @@ function showResult() {
   }
   $('status').textContent = won ? '安全抵达 · 公司门口' : '本次通勤结束';
   showOutcome(won, {
-    stats: [['本次得分', game.score()], ['实际用时', formatTime(game.time)], ['剩余车况', `${Math.max(0,Math.round(game.player.health))}%`], ['碰撞 / 闯灯', `${game.accidents} / ${game.violations}`]],
+    stats: [['本次得分', game.score()], ['实际用时', formatTime(game.time)], [!won && game.failure ? '碰撞前车况' : '剩余车况', `${Math.max(0,Math.round(game.player.health))}%`], ['碰撞 / 闯灯', `${game.accidents} / ${game.violations}`]],
     explanation: won ? safe ? '无碰撞、无闯灯，安全完成本次通勤。' : '已抵达；本次有碰撞或闯灯，不计入安全榜。' : game.reason,
     record: recordNote, stamp: `${mode === 'daily' ? '每日同路况' : '随机通勤'} / ${getDriver(selectedDriver).vehicle}`,
     actions: '<button class="primary" id="retry">同一路线，再开一次 ↗</button><button class="secondary" id="back-home">返回车手大厅</button>',
@@ -285,7 +287,7 @@ function showLevelResult() {
   const total = campaignProgress.records.reduce((sum, record) => sum + (record?.score || 0), 0);
   $('status').textContent = won ? `${game.level.name} · 已通过` : `${game.level.name} · 可以重试`;
   showOutcome(won, {
-    stats: [[won ? '本关得分' : '本次得分', game.score()], ['行驶 / 全程', `${Math.min(game.length,Math.floor(game.player.pos))}/${game.length}m`], ['剩余车况', `${Math.max(0,Math.round(game.player.health))}%`], ['实际用时', formatTime(game.time)]],
+    stats: [[won ? '本关得分' : '本次得分', game.score()], ['行驶 / 全程', `${Math.min(game.length,Math.floor(game.player.pos))}/${game.length}m`], [!won && game.failure ? '碰撞前车况' : '剩余车况', `${Math.max(0,Math.round(game.player.health))}%`], ['实际用时', formatTime(game.time)]],
     explanation: won ? last ? '村路、城市、高速全部通过。这趟稳稳到。' : `下一关：${LEVELS[currentLevel + 1].name}，已解锁。` : game.reason,
     record: `已过关最佳分合计：${total}分。${won ? saveNote : '失败不解锁、不加入过关总分，只重试当前关。'}`,
     stamp: `第${currentLevel + 1}关 / ${game.level.name}`, stars: won ? game.stars() : 0,
@@ -298,6 +300,8 @@ function showLevelResult() {
 }
 function updateHUD() {
   const p = game.player;
+  $('trait-badge').classList.toggle('active', game.skillUntil > game.time);
+  $('trait-badge').style.setProperty('--trait-color', DRIVER_TRAITS[selectedDriver].color);
   $('score').textContent = game.score();
   $('time').innerHTML = `${formatTime(game.time)}<span>.${Math.floor(game.time * 10) % 10}</span>`;
   const distance = Math.max(0, game.length - p.pos);
@@ -364,6 +368,16 @@ $('restart').onclick = () => {
 $('sound').onclick = () => { muted = !muted; $('sound').textContent = muted ? '静音' : '声音'; $('sound').setAttribute('aria-label', muted ? '开启声音' : '关闭声音'); if (!muted) sound(420); };
 window.addEventListener('blur', () => { resetInput(); if (screen === 'playing') pause(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) { resetInput(); if (screen === 'playing') pause(); } });
+function captureCrash() {
+  const source = $('road'), view = renderer.layout, ratio = source.width/view.width;
+  const width=Math.min(source.width,420*ratio), height=Math.min(source.height,360*ratio);
+  const px=((view.width-game.roadWidthAt(game.player.pos)*view.lane)/2+game.player.x*view.lane)*ratio;
+  const x=Math.max(0,Math.min(source.width-width,px-width/2)), y=Math.max(0,Math.min(source.height-height,view.playerY*ratio-height*.65));
+  const shot=document.createElement('canvas');shot.width=Math.round(width);shot.height=Math.round(height);
+  shot.getContext('2d').drawImage(source,x,y,width,height,0,0,width,height);
+  return shot.toDataURL('image/jpeg',.85);
+}
+let crashUntil = 0, crashImage = '';
 let hudTick = 0;
 function frame(now) {
   const delta = Math.min((now - lastFrame) / 1000 || 0, .1); lastFrame = now;
@@ -371,8 +385,10 @@ function frame(now) {
     accumulator += delta;
     while (accumulator >= 1 / 60 && game.state === 'running') { game.update(1 / 60, input); accumulator -= 1 / 60; }
     if (game.state === 'choice') showChoice();
-    else if (game.state === 'won' || game.state === 'lost') showResult();
+    else if (game.state === 'lost') { screen = 'crash'; crashUntil = now + 1100; resetInput(); renderer.render(game); crashImage = captureCrash(); }
+    else if (game.state === 'won') showResult();
   } else accumulator = 0;
+  if (screen === 'crash' && now >= crashUntil) showResult();
   updateReaction();
   document.body.classList.toggle('game-paused', ['paused', 'choice', 'confirm'].includes(screen));
   game.inputBrake = input.brake;

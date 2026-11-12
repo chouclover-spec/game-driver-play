@@ -29,8 +29,8 @@ test('selected driver controls real braking and continuous steering', () => {
     game.player.speed = 15;
     game.move(1);
     for (let i = 0; i < 12; i++) game.update(1 / 60, { brake: true });
-    close(game.player.speed, 15 - 7 * driver.stats.braking * .2);
-    close(game.player.x, .5 + 1.5 * driver.stats.handling * .2);
+    close(game.player.speed, 15 - 7 * driver.stats.braking * (driver.id === 'clover' ? 1.25 : 1) * .2);
+    close(game.player.x, .5 + 1.5 * driver.stats.handling * (driver.id === 'cjyyza' ? 1.2 : 1) * .2);
     for (let i = 0; i < 240; i++) game.update(1 / 60, { brake: true });
     assert.equal(game.player.speed, 0);
     assert.equal(game.player.x, 1.5);
@@ -52,4 +52,15 @@ test('unknown driver falls back to Clover without changing existing saves or def
   assert.deepEqual(unknown.player, original.player);
   assert.equal(original.player.width, .57);
   assert.equal(original.player.length, 4.3);
+});
+
+test('Wulong mitigates light impacts but cannot shield a fatal collision', () => {
+ const impact=(id,speed)=>{const g=emptyRoad(id);g.player.speed=speed;g.cars=[{id:99,type:'car',x:.5,pos:0,speed:0,lateral:0,length:4.3,width:.57}];g.checkCollisions();return g;};
+ const a=impact('clover',2),b=impact('wulong',2); assert.equal(100-b.player.health,(100-a.player.health)/2);assert.ok(b.skillUntil>b.time);assert.equal(b.state,'running');
+ const fatal=impact('wulong',12);assert.equal(fatal.state,'lost');assert.ok(fatal.failure.tip);assert.equal(fatal.failure.x,.5);
+});
+test('traits activate only in their situations and expire without traffic RNG',()=>{
+ const c=emptyRoad('clover');c.player.speed=12;c.update(.1,{brake:true});assert.ok(c.skillUntil>c.time);for(let i=0;i<10;i++)c.update(.1,{});assert.ok(c.skillUntil<c.time);
+ const j=emptyRoad('cjyyza');j.move(1);j.update(.1,{});assert.ok(j.skillUntil>j.time);
+ const s=emptyRoad('sebastian');s.player.speed=10;s.cars=[{id:3,type:'car',pos:35,x:.5,targetX:.5,speed:2,desired:2,length:4.3,width:.57,decision:99,personality:.5,wait:0,stoppedUntil:0,lateral:0}];s.update(.01,{});assert.ok(s.skillUntil>s.time);assert.equal(s.state,'running');
 });
