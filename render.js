@@ -364,7 +364,7 @@ export class Renderer {
       const markerY=Math.max(H*.29,y-car.length*scale/2-37);
       this.box(x-26,markerY,52,28,8,'#16382bea','#9affb9',2);
       c.strokeStyle='#9affb9';c.lineWidth=3;
-      for(const dy of [0,8]){c.beginPath();c.moveTo(x-8,markerY+18-dy);c.lineTo(x,markerY+11-dy);c.lineTo(x+8,y-car.length*scale/2-19-dy);c.stroke();}
+      for(const dy of [0,8]){c.beginPath();c.moveTo(x-8,markerY+18-dy);c.lineTo(x,markerY+11-dy);c.lineTo(x+8,markerY+18-dy);c.stroke();}
       this.oval(x,y+car.length*scale/2+6,18,5,'#9affb966');
     }
     const active=game.skillUntil>game.time;
