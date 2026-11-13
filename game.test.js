@@ -79,3 +79,26 @@ test('a conservative driver can complete both route branches without forced coll
     assert.equal(game.violations, 0);
   }
 });
+
+const blockedRoad = () => {
+ const g=new Commute(73);g.cars=[];g.lights=[];g.works=[];g.bumps=[];g.pedestrians=[];g.spawnIn=999;
+ for(let i=0;i<2;i++)g.cars.push({...{type:'tricycle',length:3.1,width:.48},id:200+i,x:i+.5,targetX:i+.5,pos:28,speed:3.8,desired:3.8,decision:99,personality:.3,wait:0,stoppedUntil:0,lateral:0});
+ return g;
+};
+test('horn breaks a side-by-side slow blockade with acceleration and a safe signalled merge',()=>{
+ const g=blockedRoad(),car=g.blockade();assert.equal(car.id,200);const before=g.cars.map(c=>({pos:c.pos,x:c.x}));g.horn();assert.ok(car.yieldUntil>g.time);assert.deepEqual(g.cars.map(c=>({pos:c.pos,x:c.x})),before);
+ let signalled=false;for(let i=0;i<420;i++){g.update(1/60,{brake:true});if(car.signal)signalled=true;}
+ assert.ok(signalled);assert.equal(g.accidents,0);assert.ok(car.pos-g.cars[1].pos>10);assert.ok(car.x>1.4);assert.equal(g.blockade(),null);
+});
+test('horn respects cooldown and never asks a red-light or pedestrian queue to advance',()=>{
+ const g=blockedRoad();g.horn();const until=g.cars[0].yieldUntil;g.horn();assert.equal(g.cars[0].yieldUntil,until);
+ for(const kind of ['red','pedestrian','work']){const h=blockedRoad();if(kind==='red')h.lights=[{pos:50,cycle:100,green:1,offset:10}];if(kind==='pedestrian')h.pedestrians=[{pos:50,active:true,done:false,x:1,direction:1,width:.24,length:.8}];if(kind==='work')h.works=[{start:48,end:90,lane:0}];h.horn();assert.equal(h.cars[0].yieldUntil,undefined);assert.equal(h.hornReadyAt,0);}
+});
+test('yielding still brakes for a light that turns red and never merges into nearby traffic',()=>{
+ const g=blockedRoad();g.horn();const car=g.cars[0];g.lights=[{pos:50,cycle:100,green:1,offset:10}];for(let i=0;i<480;i++)g.update(1/60,{brake:true});assert.ok(car.pos<50-car.length/2);assert.ok(car.speed<.1);assert.equal(g.accidents,0);
+ const h=blockedRoad();h.horn();h.update(.1,{brake:true});assert.equal(h.cars[0].pendingX,undefined);assert.equal(h.cars[0].targetX,.5);
+});
+test('an open lane does not consume a request and honking does not consume traffic randomness',()=>{
+ const a=blockedRoad(),b=blockedRoad();a.horn();assert.equal(a.random(),b.random());
+ const g=blockedRoad();g.cars.pop();assert.equal(g.blockade(),null);g.horn();assert.equal(g.hornReadyAt,0);assert.equal(g.cars[0].yieldUntil,undefined);
+});

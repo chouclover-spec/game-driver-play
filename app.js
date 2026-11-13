@@ -310,6 +310,12 @@ function updateHUD() {
   $('health-bar').style.width = `${Math.max(0, p.health)}%`;
   $('health').textContent = `${p.health > 80 ? '完好' : p.health > 40 ? '轻微车损' : '车损严重'} · ${Math.max(0, Math.round(p.health))}%`;
   $('health-bar').style.background = p.health < 40 ? 'var(--red)' : '';
+  const hornButton=document.querySelector('[data-action="horn"]');
+  const hornCooldown=Math.max(0,Math.ceil(game.hornReadyAt-game.time));
+  const blockade=game.blockade(), canRequest=blockade && game.canYield(blockade);
+  hornButton.classList.toggle('yield-ready', Boolean(canRequest) && !hornCooldown);
+  hornButton.querySelector('small').textContent=hornCooldown ? hornCooldown+'s' : canRequest ? '请求让路' : blockade ? '等待通行' : '鸣笛';
+  hornButton.setAttribute('aria-label',hornCooldown ? '鸣笛，让路请求冷却'+hornCooldown+'秒' : '鸣笛，请求慢车让路');
   $('pedal').textContent = input.brake ? '正在刹车' : input.gas ? '正在加速' : '自动巡航';
   const stage = game.stage(); $('stage').textContent = `0${stage + 1} / ${game.level ? game.level.name : stage === 2 && game.branch ? game.branch === 'shortcut' ? '街巷近道' : '城市主干道' : STAGES[stage]}`;
   $('road-warning').textContent = game.warning();

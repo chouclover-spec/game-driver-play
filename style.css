@@ -1896,3 +1896,5 @@ button { touch-action: manipulation; }
 .crash-review img { width:100%; max-height:190px; object-fit:contain; background:#15151d; border-radius:8px; }
 @media(max-width:700px) { .trait-badge { top:151px; left:10px; font-size:10px; } .driver-reaction { top:188px; } }
 @media(max-width:1000px) and (max-height:500px) { .trait-badge { top:105px; left:auto; right:10px; } }
+
+.in-game .controls button.horn.yield-ready { background:#9affb9; color:#16382b; box-shadow:0 0 0 2px #fff,0 0 16px #9affb980; }

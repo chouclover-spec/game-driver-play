@@ -354,6 +354,19 @@ export class Renderer {
       const y=Math.max(H*.28,screenY(person.pos)),x=leftOf(person.pos)+person.x*lane;
       ring(x,y,18,'#ffcf49');this.dot(x,y-6,3,'#fff');c.strokeStyle='#fff';c.lineWidth=2;c.beginPath();c.moveTo(x,y-2);c.lineTo(x,y+6);c.moveTo(x-6,y+1);c.lineTo(x+6,y+1);c.moveTo(x,y+6);c.lineTo(x-5,y+12);c.moveTo(x,y+6);c.lineTo(x+5,y+12);c.stroke();
     }
+    if(game.hornUntil>game.time) {
+      c.strokeStyle='#fff4a0';c.lineWidth=3;
+      for(const radius of [25,38,51]) {c.beginPath();c.arc(px,playerY,radius,Math.PI*1.15,Math.PI*1.85);c.stroke();}
+    }
+    for(const car of game.cars.filter(car=>car.yieldUntil>game.time)) {
+      const x=leftOf(car.pos)+car.x*lane,y=screenY(car.pos);
+      if(y<20||y>H-20)continue;
+      const markerY=Math.max(H*.29,y-car.length*scale/2-37);
+      this.box(x-26,markerY,52,28,8,'#16382bea','#9affb9',2);
+      c.strokeStyle='#9affb9';c.lineWidth=3;
+      for(const dy of [0,8]){c.beginPath();c.moveTo(x-8,markerY+18-dy);c.lineTo(x,markerY+11-dy);c.lineTo(x+8,y-car.length*scale/2-19-dy);c.stroke();}
+      this.oval(x,y+car.length*scale/2+6,18,5,'#9affb966');
+    }
     const active=game.skillUntil>game.time;
     if(active || (game.driver.id==='sebastian'&&threats.length)) {
       c.strokeStyle=trait.color;c.lineWidth=4;c.globalAlpha=.85;

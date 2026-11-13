@@ -8,6 +8,7 @@ export const CAR_TYPES = {
   motorcycle: { name: '摩托', speed: 17, length: 2.3, width: .23, color: '#bd795d' },
   suv: { name: '黑色SUV', speed: 18, length: 4.9, width: .66, color: '#2c3438' },
 };
+export const HORN_RULES = Object.freeze({ range: 45, cooldown: 7, duration: 7, speedBonus: 5 });
 export const STAGES = ['小区出口', '城市主路', '路线选择', '施工路段', '公司门口'];
 export function seededRandom(seed) {
   let value = seed >>> 0;
@@ -31,7 +32,7 @@ export class Commute {
     this.levelIndex = clamp(Math.floor(levelIndex) || 0, 0, LEVELS.length - 1);
     this.level = mode === 'levels' ? LEVELS[this.levelIndex] : null;
     this.potholes = []; this.pedestrians = []; this.potholeHits = 0; this.avoided = 0; this.yielded = 0; this.lastAssist = -10;
-    this.skillUntil = 0; this.failure = null;
+    this.skillUntil = 0; this.failure = null; this.hornUntil = 0; this.hornReadyAt = 0;
     this.time = 0; this.length = 2600; this.state = 'running'; this.branch = null;
     this.incidents = []; this.seenIncidents = new Set();
     this.player = { pos: 0, x: .5, targetX: .5, speed: 0, length: this.driver.length, width: this.driver.width, health: 100, lateral: 0 };
@@ -106,13 +107,35 @@ export class Commute {
     if (this.cars.some(c => Math.abs(c.x - next) < .6 && Math.abs(c.pos - p.pos) < 12)) this.emit('旁边有车。变道前留一点空间。', 'warning');
     p.targetX = next;
   }
+  blockade() {
+    const p=this.player, lanes=this.lanesAt(p.pos), cruise=(this.level?.cruise ?? 10.5)*this.driver.stats.speed;
+    if(lanes<2) return null;
+    const fronts=Array.from({length:lanes},(_,i)=>this.cars.filter(c=>c.pos>p.pos && c.pos-p.pos<HORN_RULES.range && Math.abs(c.x-(i+.5))<.45).sort((a,b)=>a.pos-b.pos)[0]);
+    if(fronts.some(c=>!c || c.speed>Math.max(6,cruise*.85) || Math.abs(c.x-c.targetX)>.08) || new Set(fronts.map(c=>c.id)).size!==lanes) return null;
+    if(Math.max(...fronts.map(c=>c.pos))-Math.min(...fronts.map(c=>c.pos))>22) return null;
+    return fronts[Math.min(lanes-1,Math.floor(p.targetX))];
+  }
+  canYield(car) {
+    return !this.lights.some(l=>l.pos>car.pos-car.length/2 && l.pos-car.pos<75 && lightState(l,this.time).color!=='green') &&
+      !this.pedestrians.some(p=>p.active&&!p.done&&p.pos>car.pos&&p.pos-car.pos<60) &&
+      !this.works.some(w=>car.pos>w.start-35&&car.pos<w.end&&Math.abs(car.x-w.lane-.5)<.6) &&
+      !(car.stoppedUntil>this.time);
+  }
   horn() {
     if (this.state !== 'running') return;
-    let reminded = false;
-    for (const car of this.cars) {
-      if (car.pos > this.player.pos && car.pos - this.player.pos < 30 && Math.abs(car.x - this.player.x) < .6 && car.wait > 0) { car.wait = 0; reminded = true; }
+    this.hornUntil=this.time+.8;
+    let reminded=false;
+    for(const car of this.cars) {
+      if(car.pos>this.player.pos && car.pos-this.player.pos<30 && Math.abs(car.x-this.player.x)<.6 && car.wait>0 && this.canYield(car)) { car.wait=0; car.waitHandled=true; reminded=true; }
     }
-    this.emit(reminded ? '前车：哦，绿了。' : '叭。前面没空，喇叭也变不出一条路。');
+    if(reminded) {this.emit('前车：哦，绿了。');return;}
+    if(this.time<this.hornReadyAt) {this.emit('让路请求冷却中。');return;}
+    const car=this.blockade();
+    if(!car) {this.emit('叭。慢车并排堵路时，鸣笛可以请求让路。');return;}
+    if(!this.canYield(car)) {this.emit('前方正在等灯或让行，稍等通行。');return;}
+    car.yieldUntil=this.time+HORN_RULES.duration;car.yieldMerged=false;car.wait=0;car.waitHandled=true;
+    this.hornReadyAt=this.time+HORN_RULES.cooldown;
+    this.emit('收到，正在让路。');
   }
   gapSafe(car, x) {
     const candidates = [...this.cars, this.player];
@@ -233,6 +256,8 @@ export class Commute {
   }
   updateCar(car, snapshot, dt) {
     let desired = car.desired;
+    const yielding=car.yieldUntil>this.time;
+    if(yielding && this.canYield(car)) desired=Math.max(desired,Math.min(this.level?.maxSpeed ?? 20,car.desired+HORN_RULES.speedBonus));
     const def = CAR_TYPES[car.type];
     if (car.type === 'taxi') desired *= .78 + .24 * Math.sin(this.time * .4 + car.personality * 10);
     car.decision -= dt;
@@ -253,6 +278,12 @@ export class Commute {
           }
         }
       }
+    }
+    // 先拉开并排车辆的纵向间距，再在确认安全后打灯并线。
+    if(yielding && !car.yieldMerged && this.canYield(car) && !mustMerge && car.pendingX===undefined && Math.abs(car.x-car.targetX)<.05) {
+      const options=[car.targetX+1,car.targetX-1].filter(x=>x>=.5&&x<=localLanes-.5&&!this.works.some(w=>car.pos>w.start-35&&car.pos<w.end&&Math.abs(x-w.lane-.5)<.6));
+      const lane=options.find(x=>this.gapSafe(car,x));
+      if(lane!==undefined) {car.yieldMerged=true;car.pendingX=lane;car.signal=Math.sign(lane-car.x);car.signalTime=.85;}
     }
     if (car.pendingX !== undefined) {
       car.signalTime -= dt;
